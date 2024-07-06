@@ -1,4 +1,4 @@
-# Immersive Hint System
+# Immersive Hint System [![CodeFactor](https://www.codefactor.io/repository/github/kalfadda/immersivehintsystem/badge)](https://www.codefactor.io/repository/github/kalfadda/immersivehintsystem)
 
 Immersive Hint System is a Unity-based system that integrates game context and lore with an AI-powered hint system. This project leverages the power of GPT-3.5-turbo to provide immersive, diegetic hints that enhance the player's experience without breaking the fourth wall.
 
