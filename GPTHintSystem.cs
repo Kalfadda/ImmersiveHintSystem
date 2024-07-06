@@ -10,7 +10,7 @@ public class GPTHintSystem : MonoBehaviour
 {
     [SerializeField] private string apiKey = "YOUR_API_KEY_HERE";
     [SerializeField] private string apiUrl = "https://api.openai.com/v1/chat/completions";
-    [SerializeField] private string model = "gpt-3.5-turbo"; // Add this line
+    [SerializeField] private string model = "gpt-3.5-turbo";
     [SerializeField] [TextArea(3,5)] private string personality;
 
     private HttpClient httpClient;
