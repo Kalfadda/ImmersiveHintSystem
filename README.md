@@ -1,5 +1,5 @@
 # Immersive Hint System [![CodeFactor](https://www.codefactor.io/repository/github/kalfadda/immersivehintsystem/badge)](https://www.codefactor.io/repository/github/kalfadda/immersivehintsystem)
-
+![Logo](https://i.imgur.com/4Slmeh1.png)
 ## Overview
 
 The Immersive Hint System is a flexible and easy-to-use framework for integrating AI-powered hints and responses into your Unity game. It maintains consistency with your game's lore and current context, ensuring immersive and relevant AI interactions.
