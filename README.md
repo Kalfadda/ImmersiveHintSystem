@@ -23,7 +23,6 @@ The Immersive Hint System is a flexible and easy-to-use framework for integratin
 
 1. Clone this repository or download the scripts.
 2. Place the scripts in your Unity project's `Assets` folder.
-3. Ensure you have the Newtonsoft.Json package installed in your Unity project.
 
 ## Setup
 
