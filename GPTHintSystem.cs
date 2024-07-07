@@ -3,8 +3,6 @@ using System;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 public class GPTHintSystem : MonoBehaviour
 {
@@ -46,19 +44,45 @@ public class GPTHintSystem : MonoBehaviour
         return contextBuilder.ToString();
     }
 
+    [Serializable]
+    private class Message
+    {
+        public string role;
+        public string content;
+    }
+
+    [Serializable]
+    private class ChatRequest
+    {
+        public string model;
+        public Message[] messages;
+    }
+
+    [Serializable]
+    private class ChatResponse
+    {
+        public Choice[] choices;
+    }
+
+    [Serializable]
+    private class Choice
+    {
+        public Message message;
+    }
+
     private async Task<string> SendGPTRequest(string prompt)
     {
-        var requestBody = new
+        var chatRequest = new ChatRequest
         {
             model = this.model,
-            messages = new[]
+            messages = new Message[]
             {
-                new { role = "system", content = aiPersonality },
-                new { role = "user", content = prompt }
+                new Message { role = "system", content = aiPersonality },
+                new Message { role = "user", content = prompt }
             }
         };
 
-        var jsonContent = JsonConvert.SerializeObject(requestBody);
+        var jsonContent = JsonUtility.ToJson(chatRequest);
         var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
         try
@@ -68,8 +92,8 @@ public class GPTHintSystem : MonoBehaviour
 
             if (response.IsSuccessStatusCode)
             {
-                JObject jsonResponse = JObject.Parse(responseBody);
-                return jsonResponse["choices"][0]["message"]["content"].ToString();
+                ChatResponse chatResponse = JsonUtility.FromJson<ChatResponse>(responseBody);
+                return chatResponse.choices[0].message.content;
             }
             else
             {
@@ -83,7 +107,8 @@ public class GPTHintSystem : MonoBehaviour
             return "An error occurred while generating the response.";
         }
     }
-    // New methods for managing dynamic lore
+
+    // Methods for managing dynamic lore
     public void AddDynamicLore(string entry)
     {
         dynamicLore.AddEntry(entry);
