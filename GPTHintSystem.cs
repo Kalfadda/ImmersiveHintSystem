@@ -3,17 +3,56 @@ using System;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
+
+[Serializable]
+public class ChatCompletionRequest
+{
+    public string model;
+    public List<Message> messages;
+}
+
+[Serializable]
+public class Message
+{
+    public string role;
+    public string content;
+}
+
+[Serializable]
+public class ChatCompletionResponse
+{
+    public Choice[] choices;
+}
+
+[Serializable]
+public class Choice
+{
+    public Message message;
+}
 
 public class GPTHintSystem : MonoBehaviour
 {
     [SerializeField] private string apiKey = "YOUR_API_KEY_HERE";
     [SerializeField] private string model = "gpt-3.5-turbo";
-    [SerializeField][TextArea(3, 10)] private string aiPersonality = "You are a helpful assistant providing information about the game world.";
+    [SerializeField] private AIPersonality currentPersonality;
     [SerializeField] private StaticLore staticLore;
     [SerializeField] private DynamicLore dynamicLore;
+    [SerializeField] private PromptTemplates promptTemplates;
+    [SerializeField] private OfflineResponseDatabase offlineResponseDatabase;
 
     private HttpClient httpClient;
     private const string API_URL = "https://api.openai.com/v1/chat/completions";
+
+    [System.Serializable]
+    private class PrioritizedContext
+    {
+        public string context;
+        public int priority;
+    }
+
+    private List<PrioritizedContext> prioritizedContexts = new List<PrioritizedContext>();
 
     void Awake()
     {
@@ -21,68 +60,78 @@ public class GPTHintSystem : MonoBehaviour
         httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {apiKey}");
     }
 
-    public async Task<string> GetResponse(string userInput)
+    public async Task<string> GetResponse(string userInput, string emotion = "neutral", string promptTemplate = "default")
     {
         string fullContext = GetFullContext();
-        string prompt = $"{fullContext}\n\nPlayer input: {userInput}\n\nProvide a response that is consistent with the game's lore and current context. The response should be diegetic (existing within the game world) and should not break the fourth wall or reference real-world concepts outside the game universe:";
+        string personalityPrompt = currentPersonality.GetPersonalityPrompt(emotion);
+        string prompt = promptTemplates.GetPromptTemplate(promptTemplate)
+            .Replace("{PERSONALITY}", personalityPrompt)
+            .Replace("{CONTEXT}", fullContext)
+            .Replace("{USER_INPUT}", userInput);
+
         return await SendGPTRequest(prompt);
     }
 
     private string GetFullContext()
     {
         StringBuilder contextBuilder = new StringBuilder();
-        contextBuilder.AppendLine("Static Lore:");
+
+        // Add prioritized contexts first
+        foreach (var prioritizedContext in prioritizedContexts.OrderByDescending(pc => pc.priority))
+        {
+            contextBuilder.AppendLine($"[Priority {prioritizedContext.priority}] {prioritizedContext.context}");
+        }
+
+        contextBuilder.AppendLine("\nStatic Lore:");
         foreach (var entry in staticLore.entries)
         {
             contextBuilder.AppendLine($"- {entry}");
         }
+
         contextBuilder.AppendLine("\nDynamic Lore and Game Events:");
         foreach (var entry in dynamicLore.entries)
         {
             contextBuilder.AppendLine($"- {entry}");
         }
+
         return contextBuilder.ToString();
     }
 
-    [Serializable]
-    private class Message
+    public void AddPrioritizedContext(string context, int priority)
     {
-        public string role;
-        public string content;
+        prioritizedContexts.Add(new PrioritizedContext { context = context, priority = priority });
+        // Optional: Sort the list after adding a new context
+        prioritizedContexts = prioritizedContexts.OrderByDescending(pc => pc.priority).ToList();
     }
 
-    [Serializable]
-    private class ChatRequest
+    public void RemovePrioritizedContext(string context)
     {
-        public string model;
-        public Message[] messages;
+        prioritizedContexts.RemoveAll(pc => pc.context == context);
     }
 
-    [Serializable]
-    private class ChatResponse
+    public void ClearPrioritizedContexts()
     {
-        public Choice[] choices;
-    }
-
-    [Serializable]
-    private class Choice
-    {
-        public Message message;
+        prioritizedContexts.Clear();
     }
 
     private async Task<string> SendGPTRequest(string prompt)
     {
-        var chatRequest = new ChatRequest
+        if (!await CheckInternetConnectivity())
+        {
+            return GetOfflineResponse(prompt);
+        }
+
+        var requestBody = new ChatCompletionRequest
         {
             model = this.model,
-            messages = new Message[]
+            messages = new List<Message>
             {
-                new Message { role = "system", content = aiPersonality },
+                new Message { role = "system", content = currentPersonality.basePersonality },
                 new Message { role = "user", content = prompt }
             }
         };
 
-        var jsonContent = JsonUtility.ToJson(chatRequest);
+        var jsonContent = JsonUtility.ToJson(requestBody);
         var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
         try
@@ -92,8 +141,8 @@ public class GPTHintSystem : MonoBehaviour
 
             if (response.IsSuccessStatusCode)
             {
-                ChatResponse chatResponse = JsonUtility.FromJson<ChatResponse>(responseBody);
-                return chatResponse.choices[0].message.content;
+                ChatCompletionResponse parsedResponse = JsonUtility.FromJson<ChatCompletionResponse>(responseBody);
+                return parsedResponse.choices[0].message.content;
             }
             else
             {
@@ -108,19 +157,54 @@ public class GPTHintSystem : MonoBehaviour
         }
     }
 
+    private async Task<bool> CheckInternetConnectivity()
+    {
+        try
+        {
+            using (var client = new HttpClient())
+            {
+                client.Timeout = TimeSpan.FromSeconds(5);
+                var response = await client.GetAsync("https://www.google.com");
+                return response.IsSuccessStatusCode;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private string GetOfflineResponse(string prompt)
+    {
+        if (offlineResponseDatabase != null)
+        {
+            return offlineResponseDatabase.GetResponse(prompt);
+        }
+        return "I'm sorry, I don't have enough information to respond to that right now.";
+    }
+
     // Methods for managing dynamic lore
     public void AddDynamicLore(string entry)
     {
-        dynamicLore.AddEntry(entry);
+        if (dynamicLore != null)
+        {
+            dynamicLore.AddEntry(entry);
+        }
     }
 
     public void RemoveDynamicLore(string entry)
     {
-        dynamicLore.RemoveEntry(entry);
+        if (dynamicLore != null)
+        {
+            dynamicLore.RemoveEntry(entry);
+        }
     }
 
     public void ClearDynamicLore()
     {
-        dynamicLore.ClearEntries();
+        if (dynamicLore != null)
+        {
+            dynamicLore.ClearEntries();
+        }
     }
 }
